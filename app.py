@@ -1,10 +1,14 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
-import sqlite3, random, datetime
+import sqlite3, random, datetime, time
+from datetime import timedelta
 
 app = Flask(__name__)
 app.secret_key = "your_secret_key_here"
+
+# 🔐 Set session timeout to 5 minutes
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=5)
 
 # ===== MAIL CONFIG =====
 app.config.update(
@@ -152,7 +156,7 @@ def open_ogl():
 @app.route('/logout')
 def logout():
     session.clear()
-    flash("You have been logged out successfully.", "info")
+    flash("You have been logged out.", "info")
     return redirect(url_for('login'))
 
 # ---------- FORGOT PASSWORD ----------
@@ -189,6 +193,23 @@ def ogl():
         flash("Please log in to access OGL Step Guides.", "warning")
         return redirect(url_for('login'))
     return render_template('ogl.html')
+
+# ---------- SESSION TIME LOGOUT ------------
+@app.before_request
+def session_timeout_check():
+    session.permanent = True  # Enable session lifetime tracking
+    session.modified = True
+    now = time.time()
+    
+    if 'last_activity' in session:
+        # Check inactivity
+        if now - session['last_activity'] > 300:  # 5 minutes = 300 seconds
+            session.clear()
+            flash("Session expired due to inactivity. Please log in again.", "warning")
+            return redirect(url_for('login'))
+    
+    # Update activity timestamp
+    session['last_activity'] = now
 
 # ---------- RUN APP ----------
 if __name__ == '__main__':
